@@ -22,7 +22,7 @@ type LFQueue struct {
 
 // 返回值：数据，错误
 func (q *LFQueue) Pop() (interface{}, error) {
-    _, next, err := q.GetReadNext(1)
+    _, next, err := q.getReadNext(1)
     if err != nil {
         return nil, err
     }
@@ -44,12 +44,12 @@ func (q *LFQueue) Push(value interface{}) error {
 
 // 返回值： 数据，错误
 func (q *LFQueue) PopMore(n uint64) ([]interface{}, error) {
-    current, next, err := q.GetReadNext(n)
+    current, next, err := q.getReadNext(n)
     if err != nil {
         return nil, err
     }
     values := make([]interface{}, int(next-current))
-    current++
+    current++ // 游标后移一位开始读数据
     for index, _ := range values {
         i := current + uint64(index)
         values[index] = q.ringBuffer[i&(q.endIndex)]
@@ -130,7 +130,7 @@ next: 结束点
 num: 实际可读空间
 err: 错误
 */
-func (q *LFQueue) GetReadNext(n uint64) (start uint64, next uint64, err error) {
+func (q *LFQueue) getReadNext(n uint64) (start uint64, next uint64, err error) {
     if n < 1 {
         n = 1
     }
