@@ -1,10 +1,16 @@
 package LFQueue
 
-import "testing"
+import (
+    "fmt"
+    "strings"
+    "testing"
+)
+
+var inCapacity = 1024
 
 func TestNewQue(t *testing.T) {
-    capacity := uint64(102400)
-    que := NewQue(capacity)
+    que := NewQue(inCapacity)
+    capacity := uint64(getCapacity(inCapacity))
     if que.capacity != capacity {
         t.Error("que's capacity is wrong")
     }
@@ -28,17 +34,54 @@ func TestNewQue(t *testing.T) {
 }
 
 func TestLFQueue_Push(t *testing.T) {
-
+    que := NewQue(inCapacity)
+    capacity := uint64(getCapacity(inCapacity))
+    item := uint64(1)
+    for ; item <= capacity * 2; item++ {
+        go func() {
+            var err error
+            err = que.Push(item)
+            if err != nil {
+                t.Errorf("que's push method run with wrong:%+v", err)
+            }
+        }()
+    }
+    checkMap:= make(map[uint64]int)
+    for index, value := range que.ringBuffer {
+        if checkMap[value.value.(uint64)] == 0 {
+            checkMap[value.value.(uint64)] = index
+            fmt.Println(index, value)
+        }else{
+            t.Errorf("data error occurs!index:%d, value:%d", index, value.value.(uint64))
+        }
+    }
 }
 
 func TestLFQueue_Pop(t *testing.T) {
-
-}
-
-func TestLFQueue_PushMore(t *testing.T) {
-
-}
-
-func TestLFQueue_PopMore(t *testing.T) {
-
+    que := NewQue(inCapacity)
+    item := uint64(1)
+    for ; item <= 1024; item++ {
+            var err error
+            err = que.Push(item)
+            if err != nil {
+                t.Errorf("que's push method run with wrong:%+v", err)
+            }
+    }
+    checkMap:= make(map[uint64]int)
+    index := 0
+    for {
+        value, err := que.Pop()
+        if err != nil {
+            if strings.Contains(err.Error(), "no data") {
+                break
+            }
+        }
+        if checkMap[value.(uint64)] == 0 {
+            checkMap[value.(uint64)] = index
+            fmt.Println(index, value)
+        }else{
+            t.Errorf("data error occurs!index:%d, value:%d", index, value.(uint64))
+        }
+        index++
+    }
 }

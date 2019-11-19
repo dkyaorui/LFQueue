@@ -27,7 +27,7 @@ func (q *LFQueue) Pop() (interface{}, error) {
         return nil, err
     }
     q.availableBuffer[next&(q.endIndex)] = -1
-    return q.ringBuffer[next&(q.endIndex)], nil
+    return q.ringBuffer[next&(q.endIndex)].value, nil
 
 }
 
@@ -99,7 +99,7 @@ func (q *LFQueue) getWriteNext(n uint64) (next uint64, err error) {
         current = q.writeCursor
         next = current + n
         // 如果申请的空间已被写入或者队列当前游标和申请的开始不同则等待
-        if q.checkAvailableCapacity(current, n) && atomic.CompareAndSwapUint64(&q.writeCursor, current, next) {
+        if q.checkAvailableCapacity(current, n) && atomic.CompareAndSwapUint64(&q.writeCursor, current, next&q.endIndex) {
             break
         }
         runtime.Gosched()
@@ -142,7 +142,7 @@ func (q *LFQueue) getReadNext(n uint64) (start uint64, next uint64, err error) {
             return 0, 0, fmt.Errorf("there is no data can read")
         }
         next = q.checkAvailableRead(current, n)
-        if atomic.CompareAndSwapUint64(&q.readCursor, current, next) {
+        if atomic.CompareAndSwapUint64(&q.readCursor, current, next&q.endIndex) {
             break
         }
         runtime.Gosched()
@@ -165,7 +165,20 @@ func (q *LFQueue) checkAvailableRead(current uint64, n uint64) uint64 {
     return end
 }
 
-func NewQue(capacity uint64) *LFQueue {
+// 获取最近的2的指数
+func getCapacity(in int) int {
+    in--
+    in |= in >> 1
+    in |= in >> 2
+    in |= in >> 4
+    in |= in >> 8
+    in |= in >> 16
+    in++
+    return in
+}
+
+func NewQue(inCapacity int) *LFQueue {
+    capacity := uint64(getCapacity(inCapacity))
     que := LFQueue{
         capacity:        capacity,
         endIndex:        capacity - 1,
