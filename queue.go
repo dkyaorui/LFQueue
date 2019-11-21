@@ -17,7 +17,7 @@ type LFQueue struct {
     writeCursor     uint64   // 写游标
     readCursor      uint64   // 读游标
     ringBuffer      []LFNode // 数据组
-    availableBuffer []int    // 标记组，默认值-1
+    availableBuffer []int64    // 标记组，默认值-1
 }
 
 // 返回值：数据，错误
@@ -26,9 +26,8 @@ func (q *LFQueue) Pop() (interface{}, error) {
     if err != nil {
         return nil, err
     }
-    q.availableBuffer[next&(q.endIndex)] = -1
+    atomic.SwapInt64(&q.availableBuffer[next&(q.endIndex)], -1)
     return q.ringBuffer[next&(q.endIndex)].value, nil
-
 }
 
 // 返回值：结束游标，错误
@@ -37,7 +36,7 @@ func (q *LFQueue) Push(value interface{}) error {
     if err != nil {
         return err
     }
-    q.availableBuffer[next&(q.endIndex)] = 1
+    atomic.SwapInt64(&q.availableBuffer[next&(q.endIndex)], 1)
     q.ringBuffer[next&(q.endIndex)] = LFNode{value: value}
     return nil
 }
@@ -185,7 +184,7 @@ func NewQue(inCapacity int) *LFQueue {
         writeCursor:     0,
         readCursor:      0,
         ringBuffer:      make([]LFNode, capacity),
-        availableBuffer: make([]int, capacity),
+        availableBuffer: make([]int64, capacity),
     }
     for index, _ := range que.availableBuffer {
         que.availableBuffer[index] = -1
