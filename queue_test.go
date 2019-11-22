@@ -1,6 +1,7 @@
 package LFQueue
 
 import (
+    "fmt"
     "strings"
     "sync"
     "testing"
@@ -36,16 +37,24 @@ func TestNewQue(t *testing.T) {
 func TestLFQueue_Push(t *testing.T) {
     que := NewQue(inCapacity)
     capacity := uint64(getCapacity(inCapacity))
-    item := uint64(1)
-    for ; item <= capacity; item++ {
+    var wg sync.WaitGroup
+    for item := uint64(1); item <= capacity+2; item++ {
+        wg.Add(1)
         go func(i uint64) {
+            defer wg.Done()
             var err error
             err = que.Push(i)
             if err != nil {
-                t.Errorf("que's push method run with wrong:%+v", err)
+                if strings.Contains(err.Error(), "the queue is full"){
+                    fmt.Printf("err: %s, value: %d\n", err, i)
+                }else {
+                    t.Errorf("que's push method run with wrong:%+v", err)
+                }
             }
         }(item)
     }
+    wg.Wait()
+    fmt.Println(que.ringBuffer)
     checkMap:= make(map[uint64]int)
     for index, value := range que.ringBuffer {
         if value.value == nil {

@@ -17,7 +17,7 @@ type LFQueue struct {
     writeCursor     uint64   // 写游标
     readCursor      uint64   // 读游标
     ringBuffer      []LFNode // 数据组
-    availableBuffer []int64    // 标记组，默认值-1
+    availableBuffer []int64  // 标记组，默认值-1
 }
 
 // 返回值：数据，错误
@@ -100,6 +100,9 @@ func (q *LFQueue) getWriteNext(n uint64) (next uint64, err error) {
         // 如果申请的空间已被写入或者队列当前游标和申请的开始不同则等待
         if q.checkAvailableCapacity(current, n) && atomic.CompareAndSwapUint64(&q.writeCursor, current, next&q.endIndex) {
             break
+        }
+        if current == q.writeCursor {
+            return q.writeCursor, fmt.Errorf("the queue is full")
         }
         runtime.Gosched()
     }
