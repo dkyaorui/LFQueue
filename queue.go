@@ -1,11 +1,33 @@
 package LFQueue
 
 import (
-    "fmt"
     "reflect"
     "runtime"
     "sync/atomic"
 )
+
+const (
+    Success          = 0
+    QueueIsFull      = 100
+    QueueIsEmpty     = 200
+    NeedArrayOrSlice = 300
+)
+
+type QueError struct {
+    StatusCode int
+}
+
+func (q *QueError) Error() string {
+    switch q.StatusCode {
+    case QueueIsFull:
+        return "queue is full"
+    case QueueIsEmpty:
+        return "queue is empty"
+    case NeedArrayOrSlice:
+        return "param must be array or slice"
+    }
+    return "no err"
+}
 
 type LFNode struct {
     value interface{}
@@ -21,7 +43,7 @@ type LFQueue struct {
 }
 
 // 返回值：数据，错误
-func (q *LFQueue) Pop() (interface{}, error) {
+func (q *LFQueue) Pop() (interface{}, *QueError) {
     _, next, err := q.getReadNext(1)
     if err != nil {
         return nil, err
@@ -31,7 +53,7 @@ func (q *LFQueue) Pop() (interface{}, error) {
 }
 
 // 返回值：结束游标，错误
-func (q *LFQueue) Push(value interface{}) error {
+func (q *LFQueue) Push(value interface{}) *QueError {
     next, err := q.getWriteNext(1)
     if err != nil {
         return err
@@ -42,7 +64,7 @@ func (q *LFQueue) Push(value interface{}) error {
 }
 
 // 返回值： 数据，错误
-func (q *LFQueue) PopMore(n uint64) ([]interface{}, error) {
+func (q *LFQueue) PopMore(n uint64) ([]interface{}, *QueError) {
     current, next, err := q.getReadNext(n)
     if err != nil {
         return nil, err
@@ -58,10 +80,10 @@ func (q *LFQueue) PopMore(n uint64) ([]interface{}, error) {
 }
 
 // 返回值： 结束游标，错误
-func (q *LFQueue) PushMore(in interface{}) error {
+func (q *LFQueue) PushMore(in interface{}) *QueError {
     values := reflect.ValueOf(in)
     if values.Kind() != reflect.Array && values.Kind() != reflect.Slice {
-        return fmt.Errorf("not array or slice")
+        return &QueError{StatusCode: NeedArrayOrSlice}
     }
     var n uint64
     n = uint64(values.Len())
@@ -88,7 +110,7 @@ n: 申请可写范围
 next: 结束点
 err: 错误
 */
-func (q *LFQueue) getWriteNext(n uint64) (next uint64, err error) {
+func (q *LFQueue) getWriteNext(n uint64) (next uint64, err *QueError) {
     if n < 1 {
         n = 1
     }
@@ -102,7 +124,8 @@ func (q *LFQueue) getWriteNext(n uint64) (next uint64, err error) {
             break
         }
         if current == q.writeCursor {
-            return q.writeCursor, fmt.Errorf("the queue is full")
+            return q.writeCursor, &QueError{QueueIsFull}
+
         }
         runtime.Gosched()
     }
@@ -132,7 +155,7 @@ next: 结束点
 num: 实际可读空间
 err: 错误
 */
-func (q *LFQueue) getReadNext(n uint64) (start uint64, next uint64, err error) {
+func (q *LFQueue) getReadNext(n uint64) (start uint64, next uint64, err *QueError) {
     if n < 1 {
         n = 1
     }
@@ -141,7 +164,7 @@ func (q *LFQueue) getReadNext(n uint64) (start uint64, next uint64, err error) {
     for {
         current = q.readCursor
         if q.availableBuffer[(current+1)&(q.endIndex)] == -1 {
-            return 0, 0, fmt.Errorf("there is no data can read")
+            return 0, 0, &QueError{StatusCode: QueueIsEmpty}
         }
         next = q.checkAvailableRead(current, n)
         if atomic.CompareAndSwapUint64(&q.readCursor, current, next&q.endIndex) {

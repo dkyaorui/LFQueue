@@ -2,7 +2,6 @@ package LFQueue
 
 import (
     "fmt"
-    "strings"
     "sync"
     "testing"
 )
@@ -42,10 +41,10 @@ func TestLFQueue_Push(t *testing.T) {
         wg.Add(1)
         go func(i uint64) {
             defer wg.Done()
-            var err error
+            var err *QueError
             err = que.Push(i)
             if err != nil {
-                if strings.Contains(err.Error(), "the queue is full"){
+                if err.StatusCode == QueueIsFull{
                     fmt.Printf("err: %s, value: %d\n", err, i)
                 }else {
                     t.Errorf("que's push method run with wrong:%+v", err)
@@ -76,10 +75,9 @@ func TestLFQueue_Pop(t *testing.T) {
         wg.Add(1)
         go func(item uint64) {
             defer wg.Done()
-            var err error
-            err = que.Push(item)
+            err := que.Push(item)
             if err != nil {
-                t.Errorf("que's push method run with wrong:%+v", err)
+                t.Errorf("que's push method run with wrong:%s", err)
             }
         }(item)
     }
@@ -93,7 +91,7 @@ func TestLFQueue_Pop(t *testing.T) {
            defer wg.Done()
            value, err := que.Pop()
            if err != nil {
-               if strings.Contains(err.Error(), "no data") {
+               if err.StatusCode == QueueIsEmpty{
                    flag = false
                    return
                }
